@@ -15,7 +15,7 @@ exports.LoginPage = class LoginPage {
      * Navigate to the Sauce Demo login page.
      */
     async goto() {
-        await this.page.goto('https://www.saucedemo.com');
+        await this.page.goto('https://www.saucedemo.com', { waitUntil: 'domcontentloaded' });
     }
 
     /**
