@@ -1,0 +1,20 @@
+{
+  "standardUser": {
+    "username": "standard_user",
+    "password": "secret_sauce",
+    "displayName": "AUTO_PLACEHOLDER",
+    "role": "customer"
+  },
+  "lockedOutUser": {
+    "username": "locked_out_user",
+    "password": "secret_sauce",
+    "displayName": "AUTO_PLACEHOLDER",
+    "role": "customer"
+  },
+  "problemUser": {
+    "username": "problem_user",
+    "password": "secret_sauce",
+    "displayName": "AUTO_PLACEHOLDER",
+    "role": "customer"
+  }
+}
