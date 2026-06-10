@@ -21,7 +21,10 @@ module.exports = defineConfig({
   /* Shared settings for all projects */
   use: {
     headless: true,
-    trace: 'retain-on-failure',
+    //trace: 'retain-on-failure', //If we want for only failed tests
+    //trace: 'off',  //If we do not want traces at all
+    trace: 'on',  //If we want for all tests, not just failures
+    screenshot: 'on',
   },
 
   projects: [

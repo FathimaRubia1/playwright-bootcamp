@@ -16,8 +16,8 @@ test.describe('Login', () => {
     await loginPage.goto();
   });
 
-  test('successful login navigates to inventory', async ({ page }) => {
-    await loginPage.login(standardUser.username, standardUser.password);
+  test.only('successful login navigates to inventory', async ({ page }) => {
+    await loginPage.login(standardUser.username, standardUser.password);   
     await expect(page).toHaveURL(/.*\/inventory\.html/);
   });
 
