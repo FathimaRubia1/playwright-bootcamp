@@ -1,52 +1,125 @@
 name: Playwright Tests
 
 on:
-  push:
-    branches: ['**']
-  pull_request:
-    branches: [main]
+  name: Playwright Matrix CI
 
-jobs:
-  test:
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1/2, 2/2]
+  on:
+    push: {}
+    pull_request:
+      branches:
+        - main
 
-    steps:
-      - uses: actions/checkout@v4
+  jobs:
+    test:
+      name: Test — ${{ matrix.project }} / ${{ matrix.shard }}
+      runs-on: ubuntu-latest
+      strategy:
+        fail-fast: false
+        matrix:
+          project: [local-chrome, staging-chrome]
+          shard: ['1/2', '2/2']
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
+        - name: Cache Playwright browsers
+          uses: actions/cache@v4
+          with:
+            path: ~/.cache/ms-playwright
+            key: ${{ runner.os }}-ms-playwright-${{ hashFiles('**/package-lock.json') }}
+            restore-keys: |
+              ${{ runner.os }}-ms-playwright-
 
-      - name: Install dependencies
-        run: npm ci
+        - name: Cache node_modules
+          uses: actions/cache@v4
+          with:
+            path: node_modules
+            key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+            restore-keys: |
+              ${{ runner.os }}-node-modules-
 
-      - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: 20
 
-      - name: Install Playwright system deps
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+        - name: Install dependencies
+          run: npm ci
 
-      - name: Run Playwright tests (shard ${{ matrix.shard }})
-        run: npx playwright test --shard=${{ matrix.shard }}
+        - name: Install Playwright browsers (chromium)
+          run: npx playwright install --with-deps chromium
 
-      - name: Upload report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playwright-report-${{ strategy.job-index }}
-          path: playwright-report/
-          retention-days: 7
+        - name: Sanitize shard for artifact name
+          id: sanitize
+          run: |
+            # replace '/' with '-' so artifact names are filesystem-safe
+            echo "shard_sanitized=$(echo '${{ matrix.shard }}' | tr '/' '-')" >> $GITHUB_OUTPUT
+
+        - name: Run Playwright tests (grep @goldenpath)
+          run: npx playwright test --project="${{ matrix.project }}" --shard="${{ matrix.shard }}" --grep "@goldenpath"
+
+        - name: Upload combined report (playwright-report + test-results)
+          if: always()
+          uses: actions/upload-artifact@v4
+          with:
+            name: report-${{ matrix.project }}-${{ steps.sanitize.outputs.shard_sanitized }}
+            path: |
+              playwright-report
+              test-results
+            retention-days: 14
+
+    merge-reports:
+      name: Merge Playwright Reports
+      runs-on: ubuntu-latest
+      needs: test
+      steps:
+        - name: Prepare folders
+          run: |
+            mkdir -p artifacts combined-report
+
+        - name: Download report-local-chrome-1-2
+          uses: actions/download-artifact@v3
+          with:
+            name: report-local-chrome-1-2
+            path: artifacts/report-local-chrome-1-2
+
+        - name: Download report-local-chrome-2-2
+          uses: actions/download-artifact@v3
+          with:
+            name: report-local-chrome-2-2
+            path: artifacts/report-local-chrome-2-2
+
+        - name: Download report-staging-chrome-1-2
+          uses: actions/download-artifact@v3
+          with:
+            name: report-staging-chrome-1-2
+            path: artifacts/report-staging-chrome-1-2
+
+        - name: Download report-staging-chrome-2-2
+          uses: actions/download-artifact@v3
+          with:
+            name: report-staging-chrome-2-2
+            path: artifacts/report-staging-chrome-2-2
+
+        - name: Build combined HTML index linking each shard report
+          run: |
+            out=combined-report/index.html
+            echo "<html><head><meta charset=\"utf-8\"><title>Combined Playwright Reports</title></head><body><h1>Combined Playwright Reports</h1><ul>" > $out
+            for d in artifacts/*; do
+              if [ -d "$d/playwright-report" ]; then
+                name=$(basename "$d")
+                # copy the full playwright-report folder into combined-report so it can be served as a single artifact
+                mkdir -p "combined-report/$name"
+                cp -r "$d/playwright-report" "combined-report/$name/playwright-report"
+                echo "<li><a href=\"$name/playwright-report/index.html\">$name — Playwright Report</a></li>" >> $out
+              fi
+            done
+            echo "</ul></body></html>" >> $out
+
+        - name: Upload combined HTML report
+          uses: actions/upload-artifact@v4
+          with:
+            name: combined-playwright-report-${{ github.run_id }}
+            path: combined-report
+            retention-days: 14

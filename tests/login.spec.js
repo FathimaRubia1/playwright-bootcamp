@@ -1,16 +1,23 @@
 const { test, expect } = require('@playwright/test');
 const { LoginPage } = require('../src/pages/login.page');
+const { buildUser } = require('../src/utilities/test-data-builder');
 
 test.describe('Login', () => {
   let loginPage;
+  let standardUser;
+
+  test.beforeAll(() => {
+    standardUser = buildUser('standardUser');
+    console.log(`Generated displayName: ${standardUser.displayName}`);
+  });
 
   test.beforeEach(async ({ page }) => {
     loginPage = new LoginPage(page);
     await loginPage.goto();
   });
 
-  test('successful login navigates to inventory', async ({ page }) => {
-    await loginPage.login('standard_user', 'secret_sauce');
+  test.only('successful login navigates to inventory', async ({ page }) => {
+    await loginPage.login(standardUser.username, standardUser.password);   
     await expect(page).toHaveURL(/.*\/inventory\.html/);
   });
 
@@ -21,7 +28,7 @@ test.describe('Login', () => {
   });
 
   test('invalid password shows mismatch error', async () => {
-    await loginPage.login('standard_user', 'wrong_password');
+    await loginPage.login(standardUser.username, 'wrong_password');
     const error = await loginPage.getErrorMessage();
     expect.soft(error).toContain('Username and password do not match');
   });
